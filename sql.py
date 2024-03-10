@@ -2,66 +2,79 @@ import psycopg
 
 
 def select_all(func):
-    def execute(**kargs):
-        user = kargs["user"]
-        host = kargs["host"]
-        dbname = kargs["dbname"]
-        with psycopg.connect(f"user='{user}' \
-                            host='{host}' \
-                            dbname='{dbname}'") as conn:
+    """
+    Decorator that executes a SELECT query using the provided function and database connection parameters.
+
+    Parameters:
+    - func (function): Function representing a SELECT query.
+
+    Returns:
+    - function: Decorated function that executes the query and returns the result.
+    """
+    def execute(**kwargs):
+        user = kwargs["user"]
+        host = kwargs["host"]
+        dbname = kwargs["dbname"]
+        with psycopg.connect(f"user='{user}' host='{host}' dbname='{dbname}'") as conn:
             with conn.cursor() as curs:
-                curs.execute(func(**kargs))
+                curs.execute(func(**kwargs))
                 return curs.fetchall()
     return execute
 
 
-def check_query_args(**kargs):
-    query = kargs['query']
-    if 'explain' in kargs and kargs['explain'] is True:
+def check_query_args(**kwargs):
+    """
+    Modifies the query based on optional arguments.
+
+    Parameters:
+    - kwargs (dict): Keyword arguments including 'query', 'explain', and 'n'.
+
+    Returns:
+    - str: Modified query.
+    """
+    query = kwargs['query']
+    if 'explain' in kwargs and kwargs['explain'] is True:
         query = 'EXPLAIN ANALYZE VERBOSE ' + query
-    if 'n' in kargs:
-        query = query + f" LIMIT {kargs['n']}"
+    if 'n' in kwargs:
+        query = query + f" LIMIT {kwargs['n']}"
     return query
 
 
 def commit(func):
     """
-    Q1. Complete the `commit()` decorator.
-    This decorator should perform the following steps:
-    a. Retrieve keyword arguments including
-       `user`, `host`, `dbname`, and `isolation_level`.
-    b. Create a connection using the `user`, `host`,
-       and `dbname`, and set the isolation level.
-    c. Execute a SQL query string returned from a function.
-    d. Commit the changes.
-    """
+    Decorator that executes a query with commit operation using the provided function and database connection parameters.
 
-    def execute(**kargs):
-        user = kargs["user"]
-        host = kargs["host"]
-        dbname = kargs["dbname"]
-        isolation_level = kargs["isolation_level"]
-        with psycopg.connect(f"user='{user}' \
-                            host='{host}' \
-                            dbname='{dbname}'") as conn:
+    Parameters:
+    - func (function): Function representing a query with commit operation.
+
+    Returns:
+    - function: Decorated function that executes the query and commits the changes.
+    """
+    def execute(**kwargs):
+        user = kwargs["user"]
+        host = kwargs["host"]
+        dbname = kwargs["dbname"]
+        isolation_level = kwargs["isolation_level"]
+        with psycopg.connect(f"user='{user}' host='{host}' dbname='{dbname}'") as conn:
             conn.isolation_level = isolation_level
             with conn.cursor() as curs:
-                curs.execute(func(**kargs))
+                curs.execute(func(**kwargs))
                 return conn.commit()
     return execute
 
 
 @commit
-def create_view_incident_with_details(**kargs):
+def create_view_incident_with_details(**kwargs):
     """
-    Q2. Create a view called incident_with_details, that includes id,
-    incident_datetime, incident_code, incident_category,
-    incident_subcategory, incident_description, longitude,
-    latitude, report_datetime, report_type_code, report_type_description,
-    supervisor_district, police_district and neighborhood
-    for all the rows in incident table.
+    Creates or replaces a view 'incident_with_details' in the database.
+
+    Parameters:
+    - kwargs (dict): Keyword arguments including database connection parameters.
+
+    Returns:
+    - str: Query to create the view.
     """
-    query = f'''
+    query = '''
                 CREATE OR REPLACE VIEW incident_with_details AS
                 SELECT a.id, a.incident_datetime, a.incident_code,
                 b.incident_category, b.incident_subcategory,
@@ -78,27 +91,21 @@ def create_view_incident_with_details(**kargs):
                 left join report_type d
                 on a.report_type_code=d.report_type_code
             '''
-    return check_query_args(query=query, **kargs)
+    return check_query_args(query=query, **kwargs)
 
 
 @select_all
-def daily_average_incident_increase(**kargs):
+def daily_average_incident_increase(**kwargs):
     """
-    Q3. Complete the daily_average_incident_increase() function.
-    This function connects to a database using the parameters
-    user, host, dbname, and n. It returns n records of date
-    and average_incident_increase.
-    The date represents the date of incident_datetime,
-    and average_incident_increase indicates
-    the difference between the average number of incidents
-    in the previous 6 days and the current date, and
-    the average number of incidents between the current date
-    and the next 6 days.
-    The value is rounded to 2 decimal points (as float) and
-    the records are ordered by date.
-    If the parameter n is not provided, the function returns all rows.
+    Computes the daily average incident increase over a rolling seven-day period.
+
+    Parameters:
+    - kwargs (dict): Keyword arguments including database connection parameters.
+
+    Returns:
+    - str: Query to compute the daily average incident increase.
     """
-    query = f'''
+    query = '''
                 SELECT
                 date,
                 (round(AVG(count) OVER(order by date ROWS
@@ -112,27 +119,21 @@ def daily_average_incident_increase(**kargs):
                 Group by CAST(incident_datetime AS date)
                 ORDER BY date) as counts
             '''
-    return check_query_args(query=query, **kargs)
+    return check_query_args(query=query, **kwargs)
 
 
 @select_all
-def three_day_daily_report_type_ct(**kargs):
+def three_day_daily_report_type_ct(**kwargs):
     """
-    Q4. Complete the three_day_daily_report_type_ct() function.
-    This function connects to a database using the parameters user,
-    host, dbname, and n.
-    It returns n records for all the incidents that occurred
-    in the provided year and month.
-    Each record includes the report_type_description,
-    date, the number of incidents with the corresponding
-    report_type_description one day before,
-    the number of incidents with the corresponding
-    report_type_description on the date,
-    and the number of incidents with the corresponding
-    report_type_description one day after.
-    If the parameter n is not provided, the function returns all rows.
+    Retrieves the report type counts for each day, including lag and lead counts.
+
+    Parameters:
+    - kwargs (dict): Keyword arguments including database connection parameters and 'year' and 'month'.
+
+    Returns:
+    - str: Query to retrieve report type counts.
     """
-    year_month = f"{kargs['year']}-{kargs['month']:02d}"
+    year_month = f"{kwargs['year']}-{kwargs['month']:02d}"
     query = f'''
                 SELECT report_type_description, date,
                 lag(count) OVER () as lag, count, lead(count) OVER ()
@@ -143,11 +144,11 @@ def three_day_daily_report_type_ct(**kargs):
                 FROM incident a
                 left join report_type b
                 on b.report_type_code = a.report_type_code
-                WHERE EXTRACT(YEAR from a.incident_datetime)={kargs['year']}
-                and EXTRACT(MONTH from a.incident_datetime) = {kargs['month']}
+                WHERE EXTRACT(YEAR from a.incident_datetime)={kwargs['year']}
+                and EXTRACT(MONTH from a.incident_datetime) = {kwargs['month']}
                 group by CAST(a.incident_datetime as date),
                 b.report_type_description
                 order by b.report_type_description,
                 CAST(a.incident_datetime as date)) as sub
             '''
-    return check_query_args(query=query, **kargs)
+    return check_query_args(query=query, **kwargs)
