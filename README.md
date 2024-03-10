@@ -25,7 +25,7 @@ This Python script utilizes the psycopg library to execute SQL queries on a Post
    pip install psycopg2
 2. Run the script:
 ```
-python sql_query_script.py
+python sql.py
 ```
 3. Connection parameters:
    - Modify the connection parameters (user, host, dbname, isolation_level) in the script according to your PostgreSQL database.
